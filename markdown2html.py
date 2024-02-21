@@ -12,27 +12,20 @@ def convert_markdown_to_html(markdown_file, html_file):
     with open(markdown_file) as read:
         with open(html_file, 'w') as html:
             unordered_start, ordered_start, paragraph = False, False, False
-            # bold syntax
+            # special syntax patterns
             for line in read:
-                line = line.replace('**', '<b>', 1)
-                line = line.replace('**', '</b>', 1)
-                line = line.replace('__', '<em>', 1)
-                line = line.replace('__', '</em>', 1)
+                line = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', line)
+                line = re.sub(r'__(.+?)__', r'<em>\1</em>', line)
 
                 # md5
-                md5 = re.findall(r'\[\[.+?\]\]', line)
-                md5_inside = re.findall(r'\[\[(.+?)\]\]', line)
+                md5 = re.findall(r'\[\[(.+?)\]\]', line)
                 if md5:
-                    line = line.replace(md5[0], hashlib.md5(
-                        md5_inside[0].encode()).hexdigest())
+                    line = re.sub(r'\[\[(.+?)\]\]', lambda match: hashlib.md5(match.group(1).encode()).hexdigest(), line)
 
                 # remove the letter C
-                remove_letter_c = re.findall(r'\(\(.+?\)\)', line)
-                remove_c_more = re.findall(r'\(\((.+?)\)\)', line)
-                if remove_letter_c:
-                    remove_c_more = ''.join(
-                        c for c in remove_c_more[0] if c not in 'Cc')
-                    line = line.replace(remove_letter_c[0], remove_c_more)
+                remove_c = re.findall(r'\(\((.+?)\)\)', line)
+                if remove_c:
+                    line = re.sub(r'\(\((.+?)\)\)', lambda match: match.group(1).replace('C', '').replace('c', ''), line)
 
                 length = len(line)
                 headings = line.lstrip('#')
@@ -41,20 +34,25 @@ def convert_markdown_to_html(markdown_file, html_file):
                 unordered_num = length - len(unordered)
                 ordered = line.lstrip('*')
                 ordered_num = length - len(ordered)
-                
+
                 # headings, lists
                 if 1 <= heading_num <= 6:
                     line = '<h{}>{}</h{}>\n'.format(
                         heading_num, headings.strip(), heading_num)
+                elif line.startswith('#'):
+                    # Handle the case where there's no space after the '#' symbol
+                    line = '<h1>{}</h1>\n'.format(line.lstrip('#').strip())
 
+                # unordered listing
                 if unordered_num:
                     if not unordered_start:
                         html.write('<ul>\n')
                         unordered_start = True
                     line = '<li>' + unordered.strip() + '</li>\n'
-                if unordered_start and not unordered_num:
-                    html.write('</ul>\n')
-                    unordered_start = False
+                else:
+                    if unordered_start:
+                        html.write('</ul>\n')
+                        unordered_start = False
 
                 if ordered_num:
                     if not ordered_start:
@@ -65,18 +63,16 @@ def convert_markdown_to_html(markdown_file, html_file):
                     html.write('</ol>\n')
                     ordered_start = False
 
-                if not (heading_num or unordered_start or ordered_start):
-                    if not paragraph and length > 1:
-                        html.write('<p>\n')
-                        paragraph = True
-                    elif length > 1:
-                        html.write('<br/>\n')
-                    elif paragraph:
-                        html.write('</p>\n')
-                        paragraph = False
-
+                # paragraphs
                 if length > 1:
-                    html.write(line)
+                    if not (heading_num or unordered_start or ordered_start):
+                        if not paragraph:
+                            html.write('<p>\n')
+                            paragraph = True
+                        html.write(line)
+                elif paragraph:
+                    html.write('</p>\n')
+                    paragraph = False
 
             if unordered_start:
                 html.write('</ul>\n')
