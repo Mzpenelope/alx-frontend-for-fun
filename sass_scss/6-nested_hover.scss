@@ -1,1 +1,11 @@
-button { color: #FF0000; :hover { color: #00FF00; } }
+@mixin button-styles($color) {
+  color: $color;
+
+  &:hover {
+    color: #00FF00;
+  }
+}
+
+button {
+  @include button-styles(#FF0000);
+}
